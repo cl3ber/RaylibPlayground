@@ -3,6 +3,12 @@
 #define RLIGHTS_IMPLEMENTATION
 #include "raymath.h"
 #include "extras/rlights.h"
+#define MAX_COLUMNS 30
+#if defined(PLATFORM_DESKTOP)
+    #define GLSL_VERSION            330
+#else   // PLATFORM_ANDROID, PLATFORM_WEB
+    #define GLSL_VERSION            100
+#endif
 
 Camera SetupCamera(void)
 {
@@ -110,11 +116,11 @@ int main (void)
 
     int cameraMode = CAMERA_FIRST_PERSON;
 
-    Vector3 cubePosition = { 0.0f, -8.0f, 0.0f };
+    Vector3 cubePosition = { 0.0f, -7.0f, 0.0f };
 
     SetTargetFPS(60);
 
-
+    /*
     Shader shader = LoadShader("C:\\Users\\cl3be\\OneDrive\\FATEC\\Jogo\\RaylibPlayground\\resources\\lighting.vs", "C:\\Users\\cl3be\\OneDrive\\FATEC\\Jogo\\RaylibPlayground\\resources\\lighting.fs");
     shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(shader, "viewPos");
     int ambientLoc = GetShaderLocation(shader, "ambient");
@@ -123,12 +129,38 @@ int main (void)
 
     float cameraPos[3] = { camera.position.x, camera.position.y, camera.position.z };
     SetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], cameraPos, SHADER_UNIFORM_VEC3);
-
+    */
     //arvre
-    Model model = LoadModel("C:\\Users\\cl3be\\OneDrive\\FATEC\\Jogo\\RaylibPlayground\\resources\\tree.obj");                 // Load model
-    Texture2D texture = LoadTexture("C:\\Users\\cl3be\\OneDrive\\FATEC\\Jogo\\RaylibPlayground\\resources\\arvre1.png"); // Load model texture
+    Model model = LoadModel("C:\\FATEC\\JOGO\\resources\\tree.obj");                 // Load model
+    Texture2D texture = LoadTexture("C:\\FATEC\\JOGO\\resources\\arvre1.png"); // Load model texture
     model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
-    BoundingBox bounds = GetMeshBoundingBox(model.meshes[0]);
+    //BoundingBox bounds = GetMeshBoundingBox(model.meshes[0]);
+
+        // Load shader and set up some uniforms
+    Shader shader = LoadShader(TextFormat("C:\\raylib\\raylib\\examples\\shaders\\resources\\shaders\\glsl%i\\lighting.vs", GLSL_VERSION),
+                               TextFormat("C:\\raylib\\raylib\\examples\\shaders\\resources\\shaders\\glsl%i\\fog.fs", GLSL_VERSION));
+    shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
+    shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(shader, "viewPos");
+
+    // Ambient light level
+    int ambientLoc = GetShaderLocation(shader, "ambient");
+    SetShaderValue(shader, ambientLoc, (float[4]){ 0.50f, 0.50f, 0.50f, 1.0f }, SHADER_UNIFORM_VEC4);
+
+    float fogDensity = 0.25f;
+    int fogDensityLoc = GetShaderLocation(shader, "fogDensity");
+    SetShaderValue(shader, fogDensityLoc, &fogDensity, SHADER_UNIFORM_FLOAT);
+
+    model.materials[0].shader = shader;
+
+
+    CreateLight(LIGHT_POINT, (Vector3){ 0, 2, 6 }, Vector3Zero(), WHITE, shader);
+
+    Vector3 positions[MAX_COLUMNS] = { 0 };
+
+    for (int i = 0; i < MAX_COLUMNS; i++)
+    {
+        positions[i] = (Vector3){ (float)GetRandomValue(-15, 15), 0.0f, (float)GetRandomValue(-15, 15) };
+    }
 
     //Onde a mágica acontece
     //WindowShouldClose é um método que valida se no decorrer do loop o usuário pressionou alguma tecla de interrupção.
@@ -148,21 +180,30 @@ int main (void)
         cameraMode= MudarCamera(&camera, cameraMode);
         UpdateCamera(&camera, cameraMode);
 
-        light.enabled = true;
-        light.position = (Vector3){ camera.position.x, camera.position.y, camera.position.z };
-        UpdateLightValues(shader, light);
+        //light.enabled = true;
+        //light.position = (Vector3){ camera.position.x, camera.position.y, camera.position.z };
+        //UpdateLightValues(shader, light);
+
+        SetShaderValue(shader, fogDensityLoc, &fogDensity, SHADER_UNIFORM_FLOAT);
+
+        // Update the light shader with the camera view position
+        SetShaderValue(shader, shader.locs[SHADER_LOC_VECTOR_VIEW], &camera.position.x, SHADER_UNIFORM_VEC3);
+
         //Abertura de bloco para indicar que você vai começar a alocar os objetos do jogo.
         BeginDrawing();
             //Não é comum usar identação dentro de um bloco. Aqui faz sentido devido as etapas que esão sendo definidas (Primeiro begindrawning para abrir um buffer e depois no Begin3DMode para inclusão dos objetos)
-            ClearBackground(RAYWHITE);
+            ClearBackground(GRAY);
 
             BeginMode3D(camera);
-                //BeginShaderMode(shader);
-                //EndShaderMode();
-                DrawPlane(Vector3Zero(), (Vector2) { 10.0, 10.0 }, RAYWHITE);
+                BeginShaderMode(shader);
+                EndShaderMode();
+                DrawPlane(Vector3Zero(), (Vector2) { 10.0, 10.0 }, GRAY);
                 //DrawCube(Vector3Zero(), 2.0, 4.0, 2.0, BLACK);
-                DrawModel(model, cubePosition, 0.1f, WHITE);
-                DrawBoundingBox(bounds, RED);
+                DrawModel(model, cubePosition, -50.1f, BLACK);
+                for (int i = 0; i < MAX_COLUMNS; i++)
+                {
+                    DrawModel(model, positions[i], 0.1f, BLACK);
+                }
 
                 //DrawPlane((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector2){ 32.0f, 32.0f }, RAYWHITE);
                 // DrawCube((Vector3){ -16.0f, 2.5f, 0.0f }, 1.0f, 5.0f, 32.0f, LIGHTGRAY);
